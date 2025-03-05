@@ -14,3 +14,12 @@ Vi ska bygga ett rörelse lampsystem som ska kunna logga när lampan tänds och 
 - BreadBoard
 - Kablar
 - DS1302 realtidsklockmodul
+
+## Utvecklingspotential
+- Extern förvaring av datan, istället för det inbyggda flash-minnet. Både med ett påkopplat flash-minne men även att kunna använda WIFI för att skicka till någon annan dator.
+- Extern strömkälla till exempelvis en större mängd lampor, just nu kommer all strömmen från Arduinon.
+- Konfigurerbart att den ska stå igång under specifika tider även om man inte har kört igång den med rörelsesensorn.
+- Moduler man kan koppla ihop med den centrala produkten för att utöka räckvidden. Både med rörelsedektorer och ljuset.
+- Konfigurerbara notifikationer, exempelvis att skicka om den går igång under specifika tider.
+- Spara data, kunna räkna ut hur mycket strömförsörjning som går åt baserat på hur länge den är tänd.
+- Någon slags dimmer för att konfigurera ljusstyrkan.
