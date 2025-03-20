@@ -1,6 +1,9 @@
 ## ProjektMedlemmar:
 Fabian Åman, Markus Reutervik, Linus Nilsson, Ayah Shehada, Mario Doka
 
+Länkar: 
+- [Användarmanual](https://github.com/linuschas/chas_sensor_hardware/blob/main/USER_MANUAL.md)
+
 # Projektbeskrivning
 Vi ska bygga ett rörelse lampsystem som ska kunna logga när lampan tänds och släcks. Systemet ska kunna känna av om det är ljust eller mörkt ute och därav vara släckt om det är ljust ute och tänd om det är mörkt. Systemet ska kunna känna av om det går någonting förbi och tända sig själv om det är mörkt. Det ska också kunna logga tider som lampan släcks och tänds som visas via displayen. 
 
