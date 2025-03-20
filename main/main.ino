@@ -1,11 +1,69 @@
 #include <EEPROM.h>
+#include <TimeLib.h> // Download in library manager
 #define EEPROM_MAX 8192
 #define EEPROM_WRITE_LED_PIN 13
+
+#define GROUP_SECOND_INTERVAL 3 * 24 * 3600 // Group the value of the last 3 days, in seconds for easier testing
 
 struct __attribute__((packed)) DataRecord {
   uint32_t timestamp; // 4 bytes
   uint16_t length; // 2 bytes
 };
+
+// Requires unix in seconds
+// Gives us {"DD/MM", "YY"}
+std::pair<String, String> convertTime(time_t time) {
+  setTime(time);
+
+  char dayMonthBuffer[11];
+  char yearBuffer[3];
+
+  sprintf(dayMonthBuffer, "%02d/%02d", day(), month());
+  sprintf(yearBuffer, "%02d", year() % 100);
+
+  return {String(dayMonthBuffer), String(yearBuffer)};
+}
+
+// Groups the time based on pre-defined values to display on the LCD
+// Returns the time threshold & total time
+std::pair<String, String> getTimeForThreshold(uint16_t address) {
+  // Grab the address, and loop backwards until address is out of bounds, or the address value is out of bounds
+
+  // Verify we have actually written to the EEPROM
+  if (address == 4) return {"00/00-00/00 00", "0 Minutes"};
+
+  uint16_t start = address - sizeof(DataRecord);
+  if (start <= 4) return {"00/00-00/00 00", "0 Minutes"};
+
+  DataRecord firstRecord;
+  EEPROM.get(start, firstRecord);
+
+  int maxTimeFromFirst(GROUP_SECOND_INTERVAL); // day * seconds per day
+  int starterTime(firstRecord.timestamp);
+  int recordSize = sizeof(DataRecord);
+  int totalTime = 0;
+  int lastTimestamp = starterTime;
+ 
+  // i becomes the address
+  for (int i(start); i > 4; i -= recordSize) {
+    DataRecord record;
+    EEPROM.get(i, record);
+    if (record.timestamp == 0xFFFF) break;
+
+    if (starterTime - record.timestamp > maxTimeFromFirst) break;
+
+    totalTime += record.length;
+    lastTimestamp = record.timestamp;
+  }
+
+  std::pair<String, String> startAddress = convertTime(starterTime);
+  std::pair<String, String> lastAddress = convertTime(lastTimestamp);
+
+  String fullDateStr = startAddress.first + "-" + lastAddress.first + " " + startAddress.second;
+  String totalTimeStr = (String)(totalTime / 60) + " Minutes";
+
+  return {fullDateStr, totalTimeStr};
+}
 
 // Development function to erase the first 4 bytes in case of mishaps where we store the address
 void eraseStart() {
@@ -25,9 +83,19 @@ void eraseEEPROM() {
     Serial.println("EEPROM fully erased.");
 }
 
+// Grabs address, and erases from address
+void eraseFromLastAddress() {
+  int address = getNextAddress();
+  for (int i = 0; i > 0; i--) {
+    EEPROM.write(i, 0xFF);
+  }
+  
+  EEPROM.put(0, (uint16_t)4);
+  Serial.println("EEPROM erased until last address stored.");
+}
+
 void insertTimestamp(uint16_t address, uint32_t timestamp, uint16_t length) {
   digitalWrite(EEPROM_WRITE_LED_PIN, HIGH);
-  delay(1000); // Temp to see effect
 
   DataRecord record;
   record.timestamp = timestamp;
@@ -52,7 +120,16 @@ void readRecord(uint16_t address) {
 
 // Temporary dummy timer for now, will use sensor when implemented
 uint32_t getTime() {
-  return 69;
+  uint16_t address = getNextAddress();
+  DataRecord record;
+  EEPROM.get(address - sizeof(DataRecord), record);
+
+  int timestamp = record.timestamp;
+  if (address == 4) {
+    timestamp = 0;
+  }
+
+  return timestamp + 60000;
 }
 
 // Pass in the unmodified last address fetch
@@ -94,19 +171,23 @@ void setup() {
 
   Serial.begin(115200);
   delay(1000);
-  // eraseEEPROM();
-  // delay(1000);
 
-  // eraseStart();
+  Serial.println("================================");
 
-  uint16_t address = getNextAddress();
-  Serial.println("Last Address:");
-  Serial.println(address);
-  insertTimestamp(address, getTime(), 20);
+  // Create a new instane on the EEPROM
+  // uint16_t address = getNextAddress();
+  // Serial.println("Last Address:");
+  // Serial.println(address);
+  // insertTimestamp(address, getTime(), 20);
 
-  delay(100);
+  // Get a readable analytics from the EEPROM
+  int address = getNextAddress();
+  std::pair<String, String> timeThreshold = getTimeForThreshold(address);
+  Serial.println(timeThreshold.first);
+  Serial.println(timeThreshold.second);
 
-  readRecord(address - sizeof(DataRecord));
+  // If you want to erase based on your last saved address, use this
+  // eraseFromLastAddress();
 }
 
 void loop() {
