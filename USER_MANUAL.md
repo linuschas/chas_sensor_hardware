@@ -22,7 +22,7 @@ DS1302 realtidsklocka
 
 Kopplingskablar och breadboard
 
-**bold**  2.2 Kopplingsschema
+2.2 Kopplingsschema
 
 Koppla photoresistorn till A0.
 
