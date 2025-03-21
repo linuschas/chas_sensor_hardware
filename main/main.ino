@@ -1,113 +1,209 @@
+#include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
-#define EEPROM_MAX 8192
-#define EEPROM_WRITE_LED_PIN 13
+#include <TimeLib.h> 
 
-struct __attribute__((packed)) DataRecord {
-  uint32_t timestamp; // 4 bytes
-  uint16_t length; // 2 bytes
+#define MOTION_CHECK 1 // Time interval to check motion sensor (in seconds)
+#define EEPROM_MAX 8192 //8192 bytes = 8 KB
+#define ON_INTERVAL 10 // Interval for motion detection in seconds
+#define GROUP_SECOND_INTERVAL 3 * 24 * 3600 // Group the value of the last 3 days
+
+// Structure to store timestamps and data length in EEPROM
+struct __attribute__((packed)) DataRecord
+{
+  uint32_t timestamp; // 4 bytes - stores timestamp as a 32-bit unsigned integer
+  uint16_t length; // 2 bytes - stores the length of the recorded data
 };
 
-// Development function to erase the first 4 bytes in case of mishaps where we store the address
-void eraseStart() {
-  for (int i = 0; i < 4; i++) {
-    EEPROM.write(i, 0xFF);
-  }
+int pho = A0; // Analog input pin for photo sensor
+int led = 4; // Digital output pin for LED
+int motion = 3; // Digital input pin for motion sensor
+
+LiquidCrystal_I2C lcd_1(32, 16, 2); // LCD object for controlling the display
+
+// Convert a timestamp to a human-readable date format
+std::pair<String, String> convertTime(time_t time)
+{
+  setTime(time); // Set the global time using TimeLib
+
+  char dayMonthBuffer[11]; // Buffer for "DD/MM"
+  char yearBuffer[3]; // Buffer for "YY"
+
+
+  sprintf(dayMonthBuffer, "%02d/%02d", day(), month());  // Format the day and month
+  sprintf(yearBuffer, "%02d", year() % 100);   // Format the year as the last two digits
+
+  return {String(dayMonthBuffer), String(yearBuffer)};  // Return the formatted date and year
 }
 
-// Development to erase 8-byte alignment after packing struct
-// Can also be used to completely wipe the EEPROM, but does use a lot of writes
-// Should probably replace with a better checker to avoid writing unnecessarily if this function is ever needed in the future
-void eraseEEPROM() {
-    for (int i = 0; i < EEPROM_MAX; i++) {
-        EEPROM.write(i, 0xFF);  // Writing 0xFF resets EEPROM
-    }
-    EEPROM.put(0, (uint16_t)4);  // Reset next write address to 4
-    Serial.println("EEPROM fully erased.");
-}
+// Get the time threshold based on the EEPROM address
+std::pair<String, String> getTimeForThreshold(uint16_t address) 
+{
+  // Grab the address, and loop backwards until address is out of bounds, or the address value is out of bounds
 
-void insertTimestamp(uint16_t address, uint32_t timestamp, uint16_t length) {
-  digitalWrite(EEPROM_WRITE_LED_PIN, HIGH);
-  delay(1000); // Temp to see effect
+  // Verify we have actually written to the EEPROM
+  if (address == 4) return {"00/00-00/00 00", "0 Minutes"}; // Return default values if no data
 
-  DataRecord record;
-  record.timestamp = timestamp;
-  record.length = length;
+  uint16_t start = address - sizeof(DataRecord); // Get the start address
+  if (start <= 4) return {"00/00-00/00 00", "0 Minutes"}; // Return default values if no data
 
-  EEPROM.put(address, record);
-  updateLastAddress(address);
+  DataRecord firstRecord; 
+  EEPROM.get(start, firstRecord); // Get the first record from EEPROM
 
-  digitalWrite(EEPROM_WRITE_LED_PIN, LOW);
-}
+  int maxTimeFromFirst(GROUP_SECOND_INTERVAL); // day * seconds per day
+  int starterTime(firstRecord.timestamp); // Get the starting timestamp
+  int recordSize = sizeof(DataRecord); // Size of the record
+  int totalTime = 0;  // Total time accumulated
+  int lastTimestamp = starterTime;  // Store the last timestamp
+ 
+  // i becomes the address
+  for (int i(start); i > 4; i -= recordSize) 
+  {
+    DataRecord record;
+    EEPROM.get(i, record); // Get the current record
+    if (record.timestamp == 0xFFFF) break; // Break if we hit an invalid timestamp
 
-// Provide the start of the address to read from
-// Will read from start until end of size
-void readRecord(uint16_t address) {
-  DataRecord record;
-  EEPROM.get(address, record);
+    if (starterTime - record.timestamp > maxTimeFromFirst) break; // Break if the time difference exceeds the limit
 
-  Serial.println("RECORD FOUND:");
-  Serial.println(record.timestamp);
-  Serial.println(record.length);
-}
-
-// Temporary dummy timer for now, will use sensor when implemented
-uint32_t getTime() {
-  return 69;
-}
-
-// Pass in the unmodified last address fetch
-// In put, insert the new address that is the next address right after the last address of the last address range we wrote to
-void updateLastAddress(uint16_t address) {
-  uint8_t structSize = sizeof(DataRecord);
-  uint16_t nextAddress = address + structSize; // Our original address + the size it would reach
-
-  // Max storage minus our next address to write to, if it hits the max, we need to reset
-  if (EEPROM_MAX - nextAddress <= structSize) {
-    Serial.println("EEPROM is full! Resetting address to start");
-    nextAddress = 4;
+    totalTime += record.length; // Add the record length to total time
+    lastTimestamp = record.timestamp;  // Update the last timestamp
   }
 
-  EEPROM.put(0, nextAddress);
+  // Convert the start and end timestamps to human-readable format
+  std::pair<String, String> startAddress = convertTime(starterTime); 
+  std::pair<String, String> lastAddress = convertTime(lastTimestamp);
+  
+  // Format the result
+  String fullDateStr = startAddress.first + "-" + lastAddress.first + " " + startAddress.second;
+  String totalTimeStr = (String)(totalTime / 60) + " Minutes"; // Convert total time to minutes
+
+  return {fullDateStr, totalTimeStr}; // Return the formatted strings
 }
 
-// Grabs the latest stored address, which is the next address after the last one we wrote to (or starts from scratch)
-uint16_t getNextAddress() {
+void setup() 
+{
+  pinMode(led, OUTPUT);
+  pinMode(motion, INPUT); 
+  Serial.begin(115200);
+
+  delay(1000);
+
+  Serial.println("================================");
+  initScreen(); // Initialize the LCD screen
+
+  int address = getNextAddress(); // Get the next available address in EEPROM
+  std::pair<String, String> timeThreshold = getTimeForThreshold(address); // Get the time threshold for the data
+  Serial.println(timeThreshold.first); // Print the start date of the data
+  Serial.println(timeThreshold.second); // Print the total time accumulated
+
+}
+
+// Initialize LCD screen
+void initScreen() 
+{
+  lcd_1.init();
+  lcd_1.backlight();
+  lcd_1.display();
+  resetScreen();
+}
+
+// Reset the screen content
+void resetScreen() 
+{
+  lcd_1.clear();
+  lcd_1.setCursor(0, 0);
+  lcd_1.print("Screen");
+  lcd_1.setCursor(0, 1);
+  lcd_1.print("Reset");
+}
+
+// Get the next address to write data to in EEPROM
+uint16_t getNextAddress() 
+{
   uint16_t address;
-  EEPROM.get(0, address);
+  EEPROM.get(0, address); // Read the current address from EEPROM
 
-  uint8_t structSize = sizeof(DataRecord);
+  uint8_t structSize = sizeof(DataRecord); // Size of the DataRecord structure
 
   // If no address is found, set first address at 4
   // If an address is found, set it to that address and start writing from it
   uint16_t nextAddress;
   if (address == 0xFFFF || address < 4 || (address + structSize) > EEPROM_MAX) {
-    nextAddress = 4;
+    nextAddress = 4; // Start writing from address 4
   } else {
-    nextAddress = address;
+    nextAddress = address; 
   }
 
-  return nextAddress;
+  return nextAddress; 
 }
 
-void setup() {
-  pinMode(EEPROM_WRITE_LED_PIN, OUTPUT); // On-board LED
-
-  Serial.begin(115200);
-  delay(1000);
-  // eraseEEPROM();
-  // delay(1000);
-
-  // eraseStart();
-
-  uint16_t address = getNextAddress();
-  Serial.println("Last Address:");
-  Serial.println(address);
-  insertTimestamp(address, getTime(), 20);
-
-  delay(100);
-
-  readRecord(address - sizeof(DataRecord));
+void loop() 
+{
+  // Check if motion is detected and light level is low
+  if (analogRead(pho) <= 20 && digitalRead(motion) == 1) 
+  {
+    isDetected(); 
+  } 
+  else 
+  {
+    digitalWrite(led, LOW); // Otherwise, turn off the LED
+  }
+  Serial.println(analogRead(pho)); // Print the value of the photo sensor for debugging
 }
 
-void loop() {
+void isDetected()
+{
+  int seconds = ON_INTERVAL; // Initialize seconds with the defined interval
+  int totalSeconds = 0; // Temporary, when we get RTC we fetch time when done to get length
+  digitalWrite(led, HIGH); // Turn on the LED during motion detection
+  showCurrentTime(); // Display the current time on the LCD
+  while (1) // Continuous loop for motion detection
+  {
+        
+    // Display the interval time on the LCD
+    /* lcd_1.clear();
+    lcd_1.setCursor(0, 0);
+    lcd_1.print("Interval:");
+    lcd_1.setCursor(0, 1);
+    lcd_1.print(totalSeconds);
+    */
+    delay(MOTION_CHECK * 1000); // Wait for the motion check interval
+    totalSeconds += MOTION_CHECK; // Add to the total time
+    if (digitalRead(motion) == 1) 
+    {
+      seconds = ON_INTERVAL; // Reset the interval if motion is still detected
+    } 
+    
+    else 
+    {
+      seconds -= MOTION_CHECK; // Decrease the interval if no motion is detected
+    }
+    
+    if (seconds <= 0) break; // Exit loop if interval is over
+
+    /* Serial.print("Tid: ");
+    Serial.print(rtc.getHours());
+    Serial.print(":");
+    Serial.print(rtc.getMinutes());
+    Serial.print(":");
+    Serial.print(rtc.getSeconds());
+    Serial.print(" - Sekunder kvar: ");
+    Serial.println(seconds); */
+  }
+  digitalWrite(led, LOW); // Turn off the LED
+  resetScreen();
+}
+
+void showCurrentTime() 
+{
+  time_t currentTime = now();  // Get the current time
+
+  // Convert the current time to a human-readable format
+  std::pair<String, String> timeString = convertTime(currentTime);
+
+  lcd_1.clear(); // Clear the LCD screen
+  lcd_1.setCursor(0, 0);
+  lcd_1.print("Time: ");
+  lcd_1.print(timeString.first); // Shows date
+  lcd_1.print("-");
+  lcd_1.print(timeString.second); // Shows year
 }
