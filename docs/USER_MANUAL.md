@@ -12,7 +12,6 @@ För att installera systemet behövs följande komponenter:
 - PIR rörelsedetektor HC-SR501
 - LED-lampa
 - LCD-display (2x16)
-- DS1302 realtidsklocka
 - Kopplingskablar och breadboard
 
 2.2 Kopplingsschema
@@ -21,7 +20,6 @@ För att installera systemet behövs följande komponenter:
 2. Koppla PIR-rörelsesensorn till digital pin 3.
 3. Koppla LED-lampan till digital pin 4.
 4. Koppla LCD-skärmen enligt dess I2C-adress (vanligtvis 0x27 eller 0x3F).
-5. Koppla realtidsklockan (DS1302) till Arduino enligt databladet.
 
 ## 3. Användning
 
