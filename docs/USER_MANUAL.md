@@ -9,7 +9,7 @@ Detta automatiska ljussystem är designat för att automatiskt tända och släck
 För att installera systemet behövs följande komponenter:
 - Arduino UNO R4 WIFI (mikrokontroller)
 - Photoresistor (ljussensor)
-- HC-SR04 (ultraljudssensor för rörelse)
+- PIR rörelsedetektor HC-SR501
 - LED-lampa
 - LCD-display (2x16)
 - DS1302 realtidsklocka
@@ -18,7 +18,7 @@ För att installera systemet behövs följande komponenter:
 2.2 Kopplingsschema
 
 1. Koppla photoresistorn till A0.
-2. ppla PIR-rörelsesensorn till digital pin 3.
+2. Koppla PIR-rörelsesensorn till digital pin 3.
 3. Koppla LED-lampan till digital pin 4.
 4. Koppla LCD-skärmen enligt dess I2C-adress (vanligtvis 0x27 eller 0x3F).
 5. Koppla realtidsklockan (DS1302) till Arduino enligt databladet.
