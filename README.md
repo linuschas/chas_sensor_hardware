@@ -13,7 +13,6 @@ Vi ska bygga ett rörelse lampsystem som ska kunna logga när lampan tänds och 
 - Arduino UNO 4 WIFI
 - BreadBoard
 - Kablar
-- DS1302 realtidsklockmodul
 
 ## Utvecklingspotential
 - Extern förvaring av datan, istället för det inbyggda flash-minnet. Både med ett påkopplat flash-minne men även att kunna använda WIFI för att skicka till någon annan dator.
