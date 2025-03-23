@@ -15,6 +15,7 @@ För att installera systemet behövs följande komponenter:
 - Kopplingskablar och breadboard
 
 2.2 Kopplingsschema
+https://www.tinkercad.com/things/d78Rxg2Bhg5/editel?sharecode=Lme-CQt1ygp6zQYCtZpkfhkTiMxRlKKI3GTZXIg1e1A
 
 1. Koppla photoresistorn till A0.
 2. Koppla PIR-rörelsesensorn till digital pin 3.
