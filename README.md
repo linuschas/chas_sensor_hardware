@@ -8,7 +8,7 @@ Vi ska bygga ett rörelse lampsystem som ska kunna logga när lampan tänds och 
 - HD44780 1602A LCD Display med I2C-interface
 - Sensor:
   - Photoresistor
-  - Rörelsesensor
+  - PIR Motion Sensor Module
 - LED-lampa
 - Arduino UNO 4 WIFI
 - BreadBoard
